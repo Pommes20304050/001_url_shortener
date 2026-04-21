@@ -1,0 +1,793 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>URL Shortener</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🔗</text></svg>">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:      #09090f;
+      --card:    rgba(255,255,255,0.035);
+      --border:  rgba(255,255,255,0.07);
+      --border2: rgba(255,255,255,0.13);
+      --purple:  #7c3aed;
+      --purple2: #6d28d9;
+      --indigo:  #6366f1;
+      --green:   #10b981;
+      --red:     #ef4444;
+      --yellow:  #f59e0b;
+      --text:    #e2e8f0;
+      --text2:   #94a3b8;
+      --text3:   #475569;
+      --r:       13px;
+      --shadow:  0 8px 32px rgba(0,0,0,.5);
+    }
+
+    html { scroll-behavior: smooth; }
+    body {
+      font-family: 'Inter', system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      line-height: 1.5;
+    }
+
+    /* ── Header ─────────────────────────────────────────── */
+    .header {
+      padding: 36px 24px 28px;
+      text-align: center;
+      position: relative;
+      overflow: hidden;
+      border-bottom: 1px solid var(--border);
+      background: linear-gradient(180deg, #110a22 0%, #0b0b1c 100%);
+    }
+    .header::before {
+      content: '';
+      position: absolute;
+      inset: -40% -20%;
+      background: radial-gradient(ellipse at 50% 0%, rgba(124,58,237,.2) 0%, transparent 65%);
+      pointer-events: none;
+    }
+    .header-icon { font-size: 2.6rem; display: block; margin-bottom: 10px; }
+    .header h1 {
+      font-size: 2.1rem; font-weight: 800; letter-spacing: -.05em;
+      background: linear-gradient(135deg, #c4b5fd 0%, #818cf8 50%, #67e8f9 100%);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+    }
+    .header-sub { color: var(--text3); font-size: .75rem; margin-top: 6px; letter-spacing: .12em; text-transform: uppercase; }
+
+    /* ── Layout ─────────────────────────────────────────── */
+    .page { max-width: 880px; margin: 0 auto; padding: 32px 16px 72px; }
+
+    /* ── Stats ──────────────────────────────────────────── */
+    .stats-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 12px; margin-bottom: 28px; }
+    .stat-card {
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: var(--r); padding: 20px 22px;
+      transition: border-color .2s, transform .2s;
+    }
+    .stat-card:hover { border-color: var(--border2); transform: translateY(-2px); }
+    .stat-value { font-size: 2.2rem; font-weight: 800; color: var(--purple); line-height: 1; }
+    .stat-label { font-size: .7rem; color: var(--text3); margin-top: 5px; text-transform: uppercase; letter-spacing: .1em; }
+    .stat-card.yellow .stat-value { color: var(--yellow); }
+    .stat-card.green  .stat-value { color: var(--green); }
+
+    /* ── Cards ──────────────────────────────────────────── */
+    .card {
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: var(--r); padding: 24px; margin-bottom: 20px;
+    }
+    .card-title {
+      font-size: .72rem; font-weight: 600; color: var(--text3);
+      text-transform: uppercase; letter-spacing: .12em; margin-bottom: 18px;
+      display: flex; align-items: center; gap: 8px;
+    }
+
+    /* ── Inputs ─────────────────────────────────────────── */
+    input[type="url"], input[type="text"], input[type="date"] {
+      width: 100%; padding: 11px 14px; border-radius: 9px;
+      border: 1px solid var(--border); background: rgba(255,255,255,.04);
+      color: var(--text); font-size: .9rem; font-family: inherit;
+      margin-bottom: 10px; transition: border-color .15s, box-shadow .15s;
+    }
+    input:focus { outline: none; border-color: var(--purple); box-shadow: 0 0 0 3px rgba(124,58,237,.15); }
+    input::placeholder { color: var(--text3); }
+    input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(.5); cursor: pointer; }
+    .form-row { display: flex; gap: 10px; margin-bottom: 10px; }
+    .form-row input { margin-bottom: 0; flex: 1; min-width: 130px; }
+
+    /* ── Primary Button ─────────────────────────────────── */
+    .btn-shorten {
+      width: 100%; padding: 13px; border-radius: 9px; border: none;
+      background: linear-gradient(135deg, var(--purple), var(--indigo));
+      color: #fff; font-size: .95rem; font-weight: 700; font-family: inherit;
+      cursor: pointer; margin-top: 4px;
+      transition: opacity .15s, transform .1s, box-shadow .2s;
+      display: flex; align-items: center; justify-content: center; gap: 8px;
+    }
+    .btn-shorten:hover { opacity: .88; box-shadow: 0 6px 24px rgba(124,58,237,.4); }
+    .btn-shorten:active { transform: scale(.98); }
+    .btn-shorten:disabled { opacity: .45; cursor: not-allowed; }
+    .spinner {
+      display: none; width: 16px; height: 16px;
+      border: 2px solid rgba(255,255,255,.3); border-top-color: #fff;
+      border-radius: 50%; animation: spin .6s linear infinite;
+    }
+    .btn-shorten.loading .btn-text { display: none; }
+    .btn-shorten.loading .spinner { display: block; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Result ─────────────────────────────────────────── */
+    .result {
+      background: rgba(16,185,129,.06); border: 1px solid rgba(16,185,129,.22);
+      border-radius: 10px; padding: 16px; margin-top: 14px;
+      display: none;
+    }
+    .result.show { display: block; animation: fadeSlide .25s ease; }
+    @keyframes fadeSlide { from { opacity:0; transform:translateY(-6px); } to { opacity:1; transform:translateY(0); } }
+    .result-link {
+      color: var(--green); font-size: 1.1rem; font-weight: 700;
+      text-decoration: none; word-break: break-all; display: block;
+    }
+    .result-link:hover { text-decoration: underline; }
+    .result-orig { color: var(--text3); font-size: .78rem; margin-top: 4px; word-break: break-all; }
+    .result-btns { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
+
+    /* ── Small Buttons ──────────────────────────────────── */
+    .btn {
+      padding: 7px 13px; border-radius: 7px; border: none; cursor: pointer;
+      font-size: .78rem; font-weight: 600; font-family: inherit;
+      transition: opacity .15s, transform .1s;
+      display: inline-flex; align-items: center; gap: 5px;
+    }
+    .btn:hover  { opacity: .78; }
+    .btn:active { transform: scale(.95); }
+    .btn-green  { background: rgba(16,185,129,.14); color: #6ee7b7; border: 1px solid rgba(16,185,129,.2); }
+    .btn-purple { background: rgba(124,58,237,.14); color: #c4b5fd; border: 1px solid rgba(124,58,237,.2); }
+    .btn-red    { background: rgba(239,68,68,.12);  color: #fca5a5; border: 1px solid rgba(239,68,68,.18); }
+    .btn-slate  { background: rgba(100,116,139,.1); color: var(--text2); border: 1px solid rgba(100,116,139,.15); }
+    .btn-save   {
+      padding: 10px 20px; border-radius: 8px; border: none;
+      background: linear-gradient(135deg, var(--purple), var(--indigo));
+      color: #fff; font-size: .88rem; font-weight: 700; font-family: inherit;
+      cursor: pointer; transition: opacity .15s;
+    }
+    .btn-save:hover { opacity: .85; }
+
+    /* ── Table Controls ─────────────────────────────────── */
+    .tbl-controls { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; flex-wrap: wrap; }
+    .filter-tabs {
+      display: flex; background: rgba(255,255,255,.04);
+      border: 1px solid var(--border); border-radius: 8px; padding: 3px;
+    }
+    .filter-tab {
+      padding: 5px 14px; border-radius: 5px; border: none; background: none;
+      color: var(--text3); font-size: .78rem; font-weight: 500; font-family: inherit;
+      cursor: pointer; transition: all .15s; white-space: nowrap;
+    }
+    .filter-tab.active { background: var(--purple); color: #fff; }
+    .search-wrap { flex: 1; min-width: 160px; position: relative; }
+    .search-wrap input { margin: 0; padding-left: 36px; }
+    .search-icon { position: absolute; left: 11px; top: 50%; transform: translateY(-50%); color: var(--text3); pointer-events: none; font-size: .85rem; }
+
+    .bulk-bar {
+      display: none; align-items: center; gap: 10px;
+      padding: 10px 14px; background: rgba(124,58,237,.1);
+      border: 1px solid rgba(124,58,237,.2); border-radius: 9px; margin-bottom: 12px;
+    }
+    .bulk-bar.show { display: flex; animation: fadeSlide .2s ease; }
+    .bulk-count { font-size: .82rem; color: #c4b5fd; font-weight: 600; flex: 1; }
+
+    /* ── Table ──────────────────────────────────────────── */
+    .tbl-wrap { overflow-x: auto; }
+    table { width: 100%; border-collapse: separate; border-spacing: 0 3px; font-size: .84rem; }
+
+    thead th {
+      padding: 7px 12px; color: var(--text3); font-weight: 600;
+      font-size: .7rem; text-transform: uppercase; letter-spacing: .09em;
+      text-align: left; cursor: pointer; user-select: none; white-space: nowrap;
+    }
+    thead th:hover { color: var(--text2); }
+    thead th.sorted { color: #a78bfa; }
+    .sort-ic { opacity: .45; margin-left: 3px; font-style: normal; }
+    thead th.sorted .sort-ic { opacity: 1; }
+
+    tbody tr {
+      background: rgba(255,255,255,.023);
+      transition: background .12s;
+    }
+    tbody tr:hover { background: rgba(124,58,237,.07); }
+    tbody tr.sel    { background: rgba(124,58,237,.12); }
+    tbody tr.expired td { opacity: .42; }
+
+    tbody tr.row-in  { animation: rowIn .35s ease; }
+    tbody tr.row-out { opacity: 0; transform: translateX(16px); transition: opacity .28s, transform .28s; }
+    @keyframes rowIn { from { opacity:0; transform:translateY(-6px); } to { opacity:1; transform:translateY(0); } }
+
+    tbody td { padding: 11px 12px; vertical-align: middle; }
+    tbody td:first-child { border-radius: 10px 0 0 10px; }
+    tbody td:last-child  { border-radius: 0 10px 10px 0; }
+
+    .cb { width: 15px; height: 15px; accent-color: var(--purple); cursor: pointer; }
+
+    .code-link {
+      color: #a78bfa; font-weight: 600; text-decoration: none;
+      display: inline-flex; align-items: center; gap: 4px;
+    }
+    .code-link:hover { color: #c4b5fd; }
+
+    .badge {
+      display: inline-block; padding: 2px 7px; border-radius: 4px;
+      font-size: .66rem; font-weight: 600; margin-left: 4px;
+    }
+    .badge-p { background: rgba(124,58,237,.2); color: #c4b5fd; }
+    .badge-r { background: rgba(239,68,68,.15); color: #fca5a5; }
+
+    .url-cell {
+      max-width: 210px; overflow: hidden; text-overflow: ellipsis;
+      white-space: nowrap; color: var(--text3);
+    }
+    .clicks-pill {
+      display: inline-block; min-width: 34px; text-align: center;
+      padding: 3px 9px; border-radius: 20px;
+      background: rgba(245,158,11,.1); color: var(--yellow);
+      font-weight: 700; font-size: .79rem;
+    }
+    .date-cell { color: var(--text3); white-space: nowrap; font-size: .76rem; }
+    .act-cell  { text-align: right; white-space: nowrap; }
+    .act-cell .btn { padding: 5px 9px; }
+
+    .empty-state {
+      text-align: center; padding: 52px 20px; color: var(--text3);
+    }
+    .empty-icon { font-size: 3rem; display: block; margin-bottom: 12px; opacity: .4; }
+    .empty-state p { font-size: .88rem; }
+
+    .tbl-footer { font-size: .75rem; color: var(--text3); margin-top: 12px; text-align: right; }
+
+    /* ── Modals ─────────────────────────────────────────── */
+    .overlay {
+      display: none; position: fixed; inset: 0;
+      background: rgba(0,0,0,.72); backdrop-filter: blur(5px);
+      z-index: 200; align-items: center; justify-content: center; padding: 20px;
+    }
+    .overlay.open { display: flex; }
+    .modal {
+      background: #121226; border: 1px solid var(--border2);
+      border-radius: 18px; padding: 28px; width: 100%; max-width: 400px;
+      box-shadow: var(--shadow); animation: modalIn .2s ease;
+    }
+    .modal.wide { max-width: 520px; }
+    @keyframes modalIn {
+      from { opacity:0; transform:scale(.93) translateY(12px); }
+      to   { opacity:1; transform:scale(1) translateY(0); }
+    }
+    .modal-title { font-size: 1.1rem; font-weight: 700; margin-bottom: 6px; }
+    .modal-sub   { font-size: .8rem; color: var(--text3); margin-bottom: 20px; word-break: break-all; }
+    .modal-foot  { display: flex; gap: 10px; margin-top: 20px; }
+    .modal-foot .btn { flex: 1; justify-content: center; padding: 9px; font-size: .82rem; }
+
+    .qr-img { display: block; margin: 0 auto 16px; border-radius: 12px; border: 3px solid rgba(124,58,237,.25); }
+    .qr-label { text-align: center; font-weight: 700; color: #a78bfa; font-size: .95rem; }
+    .qr-url   { text-align: center; font-size: .72rem; color: var(--text3); margin-top: 4px; word-break: break-all; }
+
+    .chart-box { height: 190px; margin-top: 16px; }
+
+    /* ── Toasts ─────────────────────────────────────────── */
+    #toasts {
+      position: fixed; top: 20px; right: 20px; z-index: 999;
+      display: flex; flex-direction: column; gap: 8px; pointer-events: none;
+    }
+    .toast {
+      padding: 11px 18px; border-radius: 10px; font-size: .83rem; font-weight: 500;
+      display: flex; align-items: center; gap: 9px;
+      pointer-events: auto; min-width: 220px;
+      border: 1px solid rgba(255,255,255,.08);
+      box-shadow: 0 8px 28px rgba(0,0,0,.45);
+      animation: tIn .22s ease;
+    }
+    .toast.out { animation: tOut .22s ease forwards; }
+    @keyframes tIn  { from { opacity:0; transform:translateX(28px); } to { opacity:1; transform:translateX(0); } }
+    @keyframes tOut { to   { opacity:0; transform:translateX(28px); } }
+    .toast-s { background: rgba(10,48,32,.96); color: #6ee7b7; }
+    .toast-e { background: rgba(50,10,10,.96); color: #fca5a5; }
+    .toast-i { background: rgba(15,15,50,.96); color: #a5b4fc; }
+
+    /* ── Helpers ────────────────────────────────────────── */
+    .kbd {
+      display: inline-block; padding: 1px 5px; border-radius: 4px;
+      background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.12);
+      font-size: .68rem; color: var(--text3); font-family: monospace;
+    }
+
+    @media (max-width: 600px) {
+      .stats-grid { grid-template-columns: repeat(2,1fr); }
+      .header h1  { font-size: 1.55rem; }
+      .form-row   { flex-direction: column; }
+      .form-row input { flex: none; width: 100%; }
+      .tbl-controls { flex-direction: column; align-items: stretch; }
+      .filter-tabs  { justify-content: center; }
+      .act-cell .btn span { display: none; }
+    }
+  </style>
+</head>
+<body>
+
+<div id="toasts"></div>
+
+<!-- ── Header ───────────────────────────────────────────── -->
+<header class="header">
+  <span class="header-icon">🔗</span>
+  <h1>URL Shortener</h1>
+  <div class="header-sub">Localhost &middot; SQLite &middot; Flask &middot; Chart.js</div>
+</header>
+
+<div class="page">
+
+  <!-- ── Stats ────────────────────────────────────────────── -->
+  <div class="stats-grid">
+    <div class="stat-card">
+      <div class="stat-value" id="st-total">{{ stats.total_urls }}</div>
+      <div class="stat-label">URLs gespeichert</div>
+    </div>
+    <div class="stat-card yellow">
+      <div class="stat-value" id="st-clicks">{{ stats.total_clicks }}</div>
+      <div class="stat-label">Klicks gesamt</div>
+    </div>
+    <div class="stat-card green">
+      <div class="stat-value" id="st-active">{{ stats.active_urls }}</div>
+      <div class="stat-label">Aktive Links</div>
+    </div>
+  </div>
+
+  <!-- ── Shorten Form ──────────────────────────────────────── -->
+  <div class="card">
+    <div class="card-title">🔗 URL kürzen <span class="kbd">Ctrl+K</span></div>
+    <input id="inp-url" type="url" placeholder="https://sehr-lange-url.de/mit/langem/pfad?query=beispiel" />
+    <div class="form-row">
+      <input id="inp-alias"  type="text" placeholder="Alias (optional)" />
+      <input id="inp-expire" type="date" title="Ablaufdatum" />
+    </div>
+    <button class="btn-shorten" id="shorten-btn" onclick="doShorten()">
+      <span class="btn-text">🔗 &nbsp;Kürzen</span>
+      <div class="spinner"></div>
+    </button>
+
+    <div class="result" id="result">
+      <a class="result-link" id="res-link" href="#" target="_blank"></a>
+      <div class="result-orig" id="res-orig"></div>
+      <div class="result-btns">
+        <button class="btn btn-green"  onclick="copyText(document.getElementById('res-link').textContent, event)">📋 <span>Kopieren</span></button>
+        <button class="btn btn-purple" id="res-qr-btn">QR-Code</button>
+        <button class="btn btn-slate"  onclick="window.open(document.getElementById('res-link').href,'_blank')">↗ <span>Öffnen</span></button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── URL Table ─────────────────────────────────────────── -->
+  <div class="card">
+    <div class="tbl-controls">
+      <div class="filter-tabs">
+        <button class="filter-tab active" onclick="setFilter('all',this)">Alle</button>
+        <button class="filter-tab" onclick="setFilter('active',this)">Aktiv</button>
+        <button class="filter-tab" onclick="setFilter('expired',this)">Abgelaufen</button>
+      </div>
+      <div class="search-wrap">
+        <span class="search-icon">🔍</span>
+        <input type="text" id="search" placeholder="Suchen…" oninput="renderTable()" />
+      </div>
+    </div>
+
+    <div class="bulk-bar" id="bulk-bar">
+      <span class="bulk-count" id="bulk-count"></span>
+      <button class="btn btn-red"   onclick="bulkDelete()">🗑 <span>Löschen</span></button>
+      <button class="btn btn-slate" onclick="clearSel()">✕ Abwählen</button>
+    </div>
+
+    <div class="tbl-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th style="width:32px"><input type="checkbox" class="cb" id="sel-all" onchange="toggleAll(this)"></th>
+            <th onclick="sortBy('code')">Kurzcode <i class="sort-ic">↕</i></th>
+            <th onclick="sortBy('url')">Ziel-URL <i class="sort-ic">↕</i></th>
+            <th onclick="sortBy('clicks')" style="text-align:center">Klicks <i class="sort-ic">↕</i></th>
+            <th onclick="sortBy('date')">Erstellt <i class="sort-ic">↕</i></th>
+            <th style="text-align:right">Aktionen</th>
+          </tr>
+        </thead>
+        <tbody id="tbl-body"></tbody>
+      </table>
+    </div>
+    <div class="tbl-footer" id="tbl-footer"></div>
+  </div>
+
+</div>
+
+<!-- ── QR Modal ──────────────────────────────────────────── -->
+<div class="overlay" id="qr-modal" onclick="overlayClick('qr-modal',event)">
+  <div class="modal">
+    <img class="qr-img" id="qr-img" src="" alt="QR" width="220" height="220" />
+    <div class="qr-label" id="qr-label"></div>
+    <div class="qr-url"   id="qr-url"></div>
+    <div class="modal-foot">
+      <button class="btn btn-green"  onclick="downloadQR()">⬇ <span>Download</span></button>
+      <button class="btn btn-purple" id="qr-copy">📋 <span>Kopieren</span></button>
+      <button class="btn btn-slate"  onclick="closeOverlay('qr-modal')">✕</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Edit Modal ─────────────────────────────────────────── -->
+<div class="overlay" id="edit-modal" onclick="overlayClick('edit-modal',event)">
+  <div class="modal">
+    <div class="modal-title">✏️ URL bearbeiten</div>
+    <div class="modal-sub" id="edit-sub"></div>
+    <input type="url" id="edit-inp" placeholder="Neue Ziel-URL…" onkeydown="if(event.key==='Enter')saveEdit()" />
+    <div class="modal-foot">
+      <button class="btn-save" onclick="saveEdit()">Speichern</button>
+      <button class="btn btn-slate" style="flex:1;justify-content:center" onclick="closeOverlay('edit-modal')">Abbrechen</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Chart Modal ───────────────────────────────────────── -->
+<div class="overlay" id="chart-modal" onclick="overlayClick('chart-modal',event)">
+  <div class="modal wide">
+    <div class="modal-title" id="chart-title">📊 Klick-Verlauf</div>
+    <div class="modal-sub"   id="chart-sub"></div>
+    <div class="chart-box"><canvas id="the-chart"></canvas></div>
+    <div class="modal-foot">
+      <button class="btn btn-slate" style="flex:1;justify-content:center" onclick="closeOverlay('chart-modal')">Schließen</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  // ── Data ─────────────────────────────────────────────────
+  let rows    = {{ rows_json | safe }};
+  let sortCol = 'date';
+  let sortDir = -1;
+  let filter  = 'all';
+  let sel     = new Set();
+  let editCode    = null;
+  let activeChart = null;
+
+  // ── Boot ─────────────────────────────────────────────────
+  document.addEventListener('DOMContentLoaded', () => {
+    renderTable();
+    document.getElementById('inp-url').addEventListener('keydown', e => {
+      if (e.key === 'Enter') doShorten();
+    });
+    document.addEventListener('keydown', e => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+        e.preventDefault();
+        document.getElementById('inp-url').focus();
+      }
+      if (e.key === 'Escape') closeAll();
+    });
+  });
+
+  // ── Render ───────────────────────────────────────────────
+  function renderTable() {
+    const q = document.getElementById('search').value.toLowerCase();
+    let visible = rows.filter(r => {
+      if (filter === 'active'  &&  r.is_expired) return false;
+      if (filter === 'expired' && !r.is_expired) return false;
+      if (q && !(r.display_code + r.long_url).toLowerCase().includes(q)) return false;
+      return true;
+    });
+
+    const mul = sortDir;
+    visible.sort((a, b) => {
+      const va = sortCol === 'clicks' ? a.clicks
+               : sortCol === 'date'   ? a.created_at
+               : sortCol === 'code'   ? a.display_code
+               : a.long_url;
+      const vb = sortCol === 'clicks' ? b.clicks
+               : sortCol === 'date'   ? b.created_at
+               : sortCol === 'code'   ? b.display_code
+               : b.long_url;
+      return va < vb ? mul : va > vb ? -mul : 0;
+    });
+
+    const tbody = document.getElementById('tbl-body');
+    if (!visible.length) {
+      tbody.innerHTML = `<tr><td colspan="6"><div class="empty-state">
+        <span class="empty-icon">🔗</span>
+        <p>${filter === 'all' && !q ? 'Noch keine URLs — kürze deinen ersten Link!' : 'Keine Treffer gefunden.'}</p>
+      </div></td></tr>`;
+    } else {
+      tbody.innerHTML = visible.map(r => rowHtml(r)).join('');
+    }
+
+    document.getElementById('tbl-footer').textContent =
+      `${visible.length} von ${rows.length} URL${rows.length !== 1 ? 's' : ''}`;
+    updateSortIcons();
+    updateBulkBar();
+  }
+
+  function rowHtml(r) {
+    const short  = `${location.origin}/${r.display_code}`;
+    const isSel  = sel.has(r.display_code);
+    const expB   = r.is_expired ? `<span class="badge badge-r">abgelaufen</span>` : '';
+    const aliasB = r.alias ? `<span class="badge badge-p">alias</span>` : '';
+    const code   = esc(r.display_code);
+    return `
+    <tr data-code="${code}" class="${r.is_expired ? 'expired' : ''} ${r._new ? 'row-in' : ''} ${isSel ? 'sel' : ''}">
+      <td onclick="event.stopPropagation()">
+        <input type="checkbox" class="cb" ${isSel ? 'checked' : ''} onchange="toggleSel('${code}',this)">
+      </td>
+      <td>
+        <div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap">
+          <a class="code-link" href="/${code}" target="_blank" onclick="event.stopPropagation()" title="${short}">/${code}</a>
+          ${aliasB}${expB}
+        </div>
+      </td>
+      <td class="url-cell" title="${escHtml(r.long_url)}">${escHtml(r.long_url)}</td>
+      <td style="text-align:center"><span class="clicks-pill">${r.clicks}</span></td>
+      <td class="date-cell">${r.created_at.slice(0,10)}</td>
+      <td class="act-cell" onclick="event.stopPropagation()">
+        <button class="btn btn-green"  title="Kopieren"   onclick="copyText('${short}',event)">📋</button>
+        <button class="btn btn-purple" title="QR-Code"    onclick="openQR('${code}')">QR</button>
+        <button class="btn btn-slate"  title="Klick-Chart" onclick="openChart('${code}')">📊</button>
+        <button class="btn btn-slate"  title="Bearbeiten" onclick="openEdit('${code}')">✏️</button>
+        <button class="btn btn-red"    title="Löschen"    onclick="doDelete('${code}',this)">🗑</button>
+      </td>
+    </tr>`;
+  }
+
+  const esc     = s => s.replace(/'/g,"\\'");
+  const escHtml = s => s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+
+  // ── Sort ─────────────────────────────────────────────────
+  function sortBy(col) {
+    sortDir = sortCol === col ? -sortDir : -1;
+    sortCol = col;
+    renderTable();
+  }
+  function updateSortIcons() {
+    const map = { code:'kurzcode', url:'ziel', clicks:'klicks', date:'erstellt' };
+    document.querySelectorAll('thead th').forEach(th => {
+      th.classList.remove('sorted');
+      const ic = th.querySelector('.sort-ic');
+      if (ic) ic.textContent = '↕';
+    });
+    document.querySelectorAll('thead th').forEach(th => {
+      if (th.textContent.toLowerCase().includes(map[sortCol] || '')) {
+        th.classList.add('sorted');
+        const ic = th.querySelector('.sort-ic');
+        if (ic) ic.textContent = sortDir > 0 ? '↑' : '↓';
+      }
+    });
+  }
+
+  // ── Filter ───────────────────────────────────────────────
+  function setFilter(mode, btn) {
+    filter = mode;
+    document.querySelectorAll('.filter-tab').forEach(t => t.classList.remove('active'));
+    btn.classList.add('active');
+    renderTable();
+  }
+
+  // ── Selection ────────────────────────────────────────────
+  function toggleSel(code, cb) {
+    cb.checked ? sel.add(code) : sel.delete(code);
+    const tr = document.querySelector(`tr[data-code="${code}"]`);
+    if (tr) tr.classList.toggle('sel', cb.checked);
+    updateBulkBar();
+    const allCb = document.getElementById('sel-all');
+    allCb.indeterminate = sel.size > 0 && sel.size < rows.length;
+    allCb.checked = sel.size === rows.length && rows.length > 0;
+  }
+  function toggleAll(cb) {
+    sel.clear();
+    document.querySelectorAll('.cb:not(#sel-all)').forEach(c => {
+      const code = c.closest('tr').dataset.code;
+      c.checked = cb.checked;
+      c.closest('tr').classList.toggle('sel', cb.checked);
+      if (cb.checked) sel.add(code);
+    });
+    updateBulkBar();
+  }
+  function clearSel() {
+    sel.clear();
+    document.querySelectorAll('.cb').forEach(c => { c.checked = false; c.closest('tr')?.classList.remove('sel'); });
+    updateBulkBar();
+  }
+  function updateBulkBar() {
+    const bar = document.getElementById('bulk-bar');
+    const cnt = document.getElementById('bulk-count');
+    if (sel.size > 0) {
+      bar.classList.add('show');
+      cnt.textContent = `${sel.size} ausgewählt`;
+    } else {
+      bar.classList.remove('show');
+    }
+  }
+  async function bulkDelete() {
+    if (!confirm(`${sel.size} URL(s) wirklich löschen?`)) return;
+    const codes = [...sel];
+    await Promise.all(codes.map(c => fetch('/api/urls/' + c, { method: 'DELETE' })));
+    rows = rows.filter(r => !codes.includes(r.display_code));
+    sel.clear();
+    await refreshStats();
+    renderTable();
+    toast(`${codes.length} URL(s) gelöscht`, 's');
+  }
+
+  // ── Shorten ──────────────────────────────────────────────
+  async function doShorten() {
+    const url    = document.getElementById('inp-url').value.trim();
+    const alias  = document.getElementById('inp-alias').value.trim();
+    const expire = document.getElementById('inp-expire').value.trim();
+    if (!url) { toast('Bitte eine URL eingeben', 'e'); return; }
+
+    const btn = document.getElementById('shorten-btn');
+    btn.classList.add('loading'); btn.disabled = true;
+    try {
+      const res  = await fetch('/api/shorten', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url, alias: alias || null, expires_at: expire || null })
+      });
+      const data = await res.json();
+      if (data.error) { toast('Fehler: ' + data.error, 'e'); return; }
+
+      document.getElementById('res-link').href        = data.short_url;
+      document.getElementById('res-link').textContent = data.short_url;
+      document.getElementById('res-orig').textContent = '→ ' + data.long_url;
+      document.getElementById('res-qr-btn').onclick   = () => openQR(data.code);
+      document.getElementById('result').classList.add('show');
+
+      rows.unshift({
+        code: data.code, display_code: data.code,
+        long_url: data.long_url, alias: alias || null,
+        clicks: 0, created_at: new Date().toISOString(),
+        is_expired: false, _new: true
+      });
+      document.getElementById('inp-url').value   = '';
+      document.getElementById('inp-alias').value  = '';
+      document.getElementById('inp-expire').value = '';
+      await refreshStats();
+      renderTable();
+      toast('URL erfolgreich gekürzt!', 's');
+    } catch { toast('Netzwerkfehler', 'e'); }
+    finally  { btn.classList.remove('loading'); btn.disabled = false; }
+  }
+
+  // ── Copy ─────────────────────────────────────────────────
+  function copyText(text, e) {
+    navigator.clipboard.writeText(text).then(() => {
+      toast('Kopiert!', 's');
+      if (e?.target) {
+        const orig = e.target.textContent;
+        e.target.textContent = '✓';
+        setTimeout(() => e.target.textContent = orig, 1200);
+      }
+    });
+  }
+
+  // ── Delete ───────────────────────────────────────────────
+  async function doDelete(code, btn) {
+    if (!confirm(`/${code} wirklich löschen?`)) return;
+    const res = await fetch('/api/urls/' + code, { method: 'DELETE' });
+    if (res.ok) {
+      rows = rows.filter(r => r.display_code !== code);
+      sel.delete(code);
+      await refreshStats();
+      renderTable();
+      toast(`/${code} gelöscht`, 's');
+    } else { toast('Fehler beim Löschen', 'e'); }
+  }
+
+  // ── QR ───────────────────────────────────────────────────
+  async function openQR(code) {
+    const res  = await fetch('/api/qr/' + code);
+    const data = await res.json();
+    const short = `${location.origin}/${code}`;
+    document.getElementById('qr-img').src   = 'data:image/png;base64,' + data.qr;
+    document.getElementById('qr-label').textContent = short;
+    document.getElementById('qr-url').textContent   = data.long_url;
+    document.getElementById('qr-copy').onclick = e  => copyText(short, e);
+    document.getElementById('qr-modal').classList.add('open');
+  }
+  function downloadQR() {
+    const a = Object.assign(document.createElement('a'), {
+      href: document.getElementById('qr-img').src,
+      download: 'qr-' + document.getElementById('qr-label').textContent.split('/').pop() + '.png'
+    });
+    a.click();
+  }
+
+  // ── Edit ─────────────────────────────────────────────────
+  function openEdit(code) {
+    const r = rows.find(r => r.display_code === code);
+    if (!r) return;
+    editCode = code;
+    document.getElementById('edit-sub').textContent = '/' + code;
+    document.getElementById('edit-inp').value = r.long_url;
+    document.getElementById('edit-modal').classList.add('open');
+    setTimeout(() => document.getElementById('edit-inp').focus(), 60);
+  }
+  async function saveEdit() {
+    const newUrl = document.getElementById('edit-inp').value.trim();
+    if (!newUrl) return;
+    const res  = await fetch('/api/urls/' + editCode, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url: newUrl })
+    });
+    const data = await res.json();
+    if (data.error) { toast('Fehler: ' + data.error, 'e'); return; }
+    const r = rows.find(r => r.display_code === editCode);
+    if (r) r.long_url = newUrl;
+    closeOverlay('edit-modal');
+    renderTable();
+    toast('URL aktualisiert', 's');
+  }
+
+  // ── Chart ────────────────────────────────────────────────
+  async function openChart(code) {
+    const res  = await fetch(`/api/clicks/${code}?days=14`);
+    const data = await res.json();
+    const r    = rows.find(r => r.display_code === code);
+    document.getElementById('chart-title').textContent = `📊 Klick-Verlauf — /${code}`;
+    document.getElementById('chart-sub').textContent   = r?.long_url || '';
+    if (activeChart) activeChart.destroy();
+    const ctx = document.getElementById('the-chart').getContext('2d');
+    activeChart = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels: data.length ? data.map(d => d.day) : ['Keine Daten'],
+        datasets: [{
+          label: 'Klicks',
+          data: data.length ? data.map(d => d.clicks) : [0],
+          backgroundColor: 'rgba(124,58,237,.55)',
+          borderColor: '#7c3aed',
+          borderWidth: 1, borderRadius: 5,
+        }]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+          x: { ticks: { color: '#475569', font: { size: 10 } }, grid: { color: 'rgba(255,255,255,.04)' } },
+          y: { ticks: { color: '#475569', font: { size: 10 }, stepSize: 1 }, grid: { color: 'rgba(255,255,255,.04)' }, beginAtZero: true }
+        }
+      }
+    });
+    document.getElementById('chart-modal').classList.add('open');
+  }
+
+  // ── Stats ────────────────────────────────────────────────
+  async function refreshStats() {
+    const s = await fetch('/api/stats').then(r => r.json());
+    document.getElementById('st-total').textContent  = s.total_urls;
+    document.getElementById('st-clicks').textContent = s.total_clicks;
+    document.getElementById('st-active').textContent = s.active_urls;
+  }
+
+  // ── Modals ───────────────────────────────────────────────
+  function overlayClick(id, e) { if (e.target.id === id) closeOverlay(id); }
+  function closeOverlay(id)    { document.getElementById(id).classList.remove('open'); }
+  function closeAll()          { document.querySelectorAll('.overlay.open').forEach(o => o.classList.remove('open')); }
+
+  // ── Toast ────────────────────────────────────────────────
+  function toast(msg, type = 'i') {
+    const icons = { s: '✓', e: '✕', i: 'ℹ' };
+    const t = document.createElement('div');
+    t.className = `toast toast-${type}`;
+    t.innerHTML = `<span>${icons[type]}</span><span>${msg}</span>`;
+    document.getElementById('toasts').appendChild(t);
+    setTimeout(() => { t.classList.add('out'); setTimeout(() => t.remove(), 240); }, 2600);
+  }
+</script>
+</body>
+</html>
